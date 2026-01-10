@@ -3,15 +3,15 @@ package com.ac101m.am
 import com.ac101m.am.Utils.Companion.createChunkTicket
 import com.ac101m.am.persistence.Config
 import com.ac101m.am.persistence.PersistentMinecartTicket
-import net.minecraft.server.world.ServerWorld
-import net.minecraft.util.math.ChunkPos
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.ChunkPos
 import java.util.UUID
 
 /**
  * Manages ticket creation as a minecart moves.
  */
 class TicketHandler(
-    private val world: ServerWorld,
+    private val world: ServerLevel,
     private var chunkPos: ChunkPos,
     private val config: Config,
     private var idleCounter: Int
@@ -43,7 +43,7 @@ class TicketHandler(
      * Called on every tick, refreshes the ticket if appropriate.
      */
     fun tick() {
-        if (refreshCounter < Utils.AM_CHUNK_TICKET_TYPE.expiryTicks) {
+        if (refreshCounter < Utils.AM_CHUNK_TICKET_TYPE.timeout) {
             refreshCounter += 1
         } else {
             createTicket(chunkPos)
@@ -70,7 +70,7 @@ class TicketHandler(
             x = chunkPos.x,
             z = chunkPos.z,
             idleTicks = idleCounter,
-            worldName = world.registryKey.value.toString()
+            worldName = world.dimension().identifier().toString()
         )
     }
 }

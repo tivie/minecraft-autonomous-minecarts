@@ -6,7 +6,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
-import net.minecraft.util.WorldSavePath
+import net.minecraft.world.level.storage.LevelResource
 import java.nio.file.Path
 
 class FabricEnvironment : Environment, ModInitializer {
@@ -15,7 +15,7 @@ class FabricEnvironment : Environment, ModInitializer {
     override lateinit var server: MinecraftServer
     override val configDirectory: Path = FabricLoader.getInstance().configDir
     override val worldDirectory: Path
-        get() = server.getSavePath(WorldSavePath.ROOT)
+        get() = server.getWorldPath(LevelResource.ROOT)
 
     override fun onInitialize() {
         plugin = AutonomousMinecarts(this)

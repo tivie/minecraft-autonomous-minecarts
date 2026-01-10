@@ -2,12 +2,11 @@ package com.ac101m.am
 
 import com.ac101m.am.persistence.Config
 import com.ac101m.am.persistence.PersistentMinecartTicket
-import net.minecraft.entity.Entity
-import net.minecraft.entity.vehicle.AbstractMinecartEntity
-import net.minecraft.predicate.entity.EntityPredicates
-import net.minecraft.server.world.ServerWorld
-import net.minecraft.util.TypeFilter
-import net.minecraft.util.math.ChunkPos
+import net.minecraft.world.entity.Entity
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart
+import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.entity.EntityTypeTest
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.collections.ArrayList
@@ -17,7 +16,7 @@ import kotlin.collections.HashMap
  * Tracks the state of a world, specifically whether to tick or not.
  */
 class WorldTracker(
-    private var world: ServerWorld,
+    private var world: ServerLevel,
     private val config: Config
 ) {
     companion object {
@@ -25,7 +24,7 @@ class WorldTracker(
         private const val IDLE_TIMEOUT = 300
 
         private val minecartTypeFilter =
-            TypeFilter.instanceOf<Entity, AbstractMinecartEntity>(AbstractMinecartEntity::class.java)
+            EntityTypeTest.forClass<Entity, AbstractMinecart>(AbstractMinecart::class.java)
 
         private val log = LoggerFactory.getLogger(WorldTracker::class.java)
     }
@@ -44,7 +43,7 @@ class WorldTracker(
     /**
      * Array containing all minecart entities.
      */
-    private val worldCarts = ArrayList<AbstractMinecartEntity>()
+    private val worldCarts = ArrayList<AbstractMinecart>()
 
     /**
      * Tracked minecarts by cart UUID.
@@ -62,22 +61,22 @@ class WorldTracker(
      * [shouldTick] variable to indicate whether entities in the world will tick.
      * Should be called at the beginning of a world tick.
      */
-    fun updateWorldIdle(world: ServerWorld) {
+    fun updateWorldIdle(world: ServerLevel) {
         this.world = world
 
-        val nothingToLoad = world.players.isEmpty() && world.forcedChunks.isEmpty()
+        val activeTickets = world.chunkSource.hasActiveTickets()
 
-        if (!nothingToLoad) {
+        if (activeTickets) {
             idleCounter = 0
         }
 
-        shouldTick = !nothingToLoad || idleCounter++ < IDLE_TIMEOUT
+        shouldTick = activeTickets || idleCounter++ < IDLE_TIMEOUT
     }
 
     /**
      * Updates minecarts and minecart tickets.
      */
-    fun updateMinecarts(world: ServerWorld) {
+    fun updateMinecarts(world: ServerLevel) {
         this.world = world
 
         if (!shouldTick) {
@@ -86,7 +85,7 @@ class WorldTracker(
 
         // Get all carts in the world. Note that this will not find carts in unloaded areas of the map.
         worldCarts.clear()
-        world.collectEntitiesByType(minecartTypeFilter, EntityPredicates.VALID_ENTITY, worldCarts)
+        world.getEntities(minecartTypeFilter, Entity::isAlive, worldCarts)
 
         // Update trackers for all minecarts with nonzero velocity, or create tracker if none exists.
         worldCarts.forEach { cart ->
@@ -110,8 +109,8 @@ class WorldTracker(
             if (tracker.minecartIsActive) {
                 ticketHandlers.computeIfAbsent(id) {
                     TicketHandler(
-                        world = tracker.minecart.world as ServerWorld,
-                        chunkPos =  tracker.minecart.chunkPos,
+                        world = tracker.minecart.level() as ServerLevel,
+                        chunkPos =  tracker.minecart.chunkPosition(),
                         config = config,
                         idleCounter = 0
                     )
@@ -119,7 +118,7 @@ class WorldTracker(
             }
 
             // Update ticket handlers positions
-            ticketHandlers[id]?.updatePosition(tracker.minecart.chunkPos)
+            ticketHandlers[id]?.updatePosition(tracker.minecart.chunkPosition())
 
             false
         }

@@ -5,11 +5,15 @@ import com.ac101m.am.environment.Environment
 import com.ac101m.am.persistence.Config
 import com.ac101m.am.persistence.StartupState
 import com.ac101m.am.persistence.PersistentMinecartTicket
-import net.minecraft.registry.Registries
-import net.minecraft.registry.Registry
-import net.minecraft.server.world.ChunkTicketType
-import net.minecraft.server.world.ServerWorld
-import net.minecraft.util.Identifier
+import net.minecraft.core.Registry
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.resources.Identifier
+import net.minecraft.server.level.TicketType
+import net.minecraft.server.level.TicketType.FLAG_KEEP_DIMENSION_ACTIVE
+import net.minecraft.server.level.TicketType.FLAG_LOADING
+import net.minecraft.server.level.TicketType.FLAG_PERSIST
+import net.minecraft.server.level.TicketType.FLAG_SIMULATION
 import org.slf4j.LoggerFactory
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -36,14 +40,13 @@ class AutonomousMinecarts(private val environment: Environment) {
             Config().apply { save(configPath) }
         }
 
-        val chunkTicketType = ChunkTicketType(
+        val chunkTicketType = TicketType(
             config.ticketDuration.toLong(),
-            false,
-            ChunkTicketType.Use.LOADING_AND_SIMULATION
+            FLAG_PERSIST or FLAG_LOADING or FLAG_SIMULATION or FLAG_KEEP_DIMENSION_ACTIVE
         )
 
         Utils.AM_CHUNK_TICKET_TYPE = Registry.register(
-            Registries.TICKET_TYPE,
+            BuiltInRegistries.TICKET_TYPE,
             "am_minecart",
             chunkTicketType
         )
@@ -102,7 +105,7 @@ class AutonomousMinecarts(private val environment: Environment) {
                 continue
             }
 
-            trackedWorlds.computeIfAbsent(world.registryKey.value) {
+            trackedWorlds.computeIfAbsent(world.dimension().identifier()) {
                 WorldTracker(world, config)
             }.loadPersistedTicket(ticket)
         }
@@ -113,8 +116,8 @@ class AutonomousMinecarts(private val environment: Environment) {
     /**
      * Update tracked worlds and world idle state.
      */
-    fun beforeWorldTick(world: ServerWorld) {
-        trackedWorlds.computeIfAbsent(world.registryKey.value) {
+    fun beforeWorldTick(world: ServerLevel) {
+        trackedWorlds.computeIfAbsent(world.dimension().identifier()) {
             WorldTracker(world, config)
         }.updateWorldIdle(world)
     }
@@ -122,8 +125,8 @@ class AutonomousMinecarts(private val environment: Environment) {
     /**
      * Update minecart trackers, create trackers where necessary.
      */
-    fun afterWorldTick(world: ServerWorld) {
-        trackedWorlds[world.registryKey.value]!!.updateMinecarts(world)
+    fun afterWorldTick(world: ServerLevel) {
+        trackedWorlds[world.dimension().identifier()]!!.updateMinecarts(world)
     }
 
     companion object {
